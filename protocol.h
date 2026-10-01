@@ -1,23 +1,23 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include <cstdint>
+#include <stdint.h>
 
 
-enum class Opcode : uint8_t {
-    UPLOAD = 0x01,
-    DOWNLOAD = 0x02,
-    LIST = 0x03,
-    DELETE = 0x04,
-    ACK = 0x05
+enum Opcode : uint8_t {
+    UPLOAD = 1,
+    DOWNLOAD = 2,
+    ACK = 3
 };
 
 
-struct __attribute__((packed)) PacketHeader {
-    uint16_t magic = 0xABCD; 
-    Opcode opcode;           
-    uint8_t reserved = 0x00; 
-    uint32_t payload_size;   
-};
+#pragma pack(push, 1)
+struct PacketHeader {
+    uint16_t magic;         
+    uint8_t opcode;         
+    uint8_t filename_len;   
+    uint32_t payload_size;  
+};                          
+#pragma pack(pop)
 
 #endif
