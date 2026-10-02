@@ -1,6 +1,7 @@
 #include "../include/NetworkServer.h"
 #include "../include/TransferService.h"
 #include "../include/protocol.h"
+#include "../include/AuthenticationService.h"
 #include <iostream>
 #include <thread>
 #include <unistd.h>
@@ -18,6 +19,20 @@ NetworkServer::~NetworkServer() {
 }
 
 bool NetworkServer::start() {
+    
+    if (!db.connect("database/file_sharing.db")) {
+        std::cerr << "[-] Database connection failed.\n";
+        return false;
+    }
+    
+    if (!db.initializeTables()) {
+        std::cerr << "[-] Failed to initialize database tables.\n";
+        return false;
+    }
+    db.saveUser("nikhil_2341019074", "iter123", "Student", "server_storage/users/nikhil");//test
+    std::cout << "[+] SQLite Database file_sharing.db initialized successfully.\n";
+
+    
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         std::cerr << "[-] Failed to create socket.\n";
@@ -63,10 +78,25 @@ void NetworkServer::handleClient(int client_fd) {
             recv(client_fd, &filename[0], header.filename_len, 0);
         }
 
-        
         TransferService transferService;
+        AuthenticationService authService(db); 
 
         switch (header.opcode) {
+            case Opcode::AUTH: {
+                AuthPayload creds;
+                recv(client_fd, &creds, sizeof(AuthPayload), 0);
+                
+                bool success = authService.authenticate(creds.username, creds.password);
+                
+                PacketHeader ack_header;
+                ack_header.magic = 0xABCD;
+                ack_header.opcode = Opcode::ACK;
+                ack_header.filename_len = 0;
+                ack_header.payload_size = success ? 1 : 0; 
+                
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                break;
+            }
             case Opcode::UPLOAD:
                 transferService.receiveFile(client_fd, filename, header.payload_size);
                 break;

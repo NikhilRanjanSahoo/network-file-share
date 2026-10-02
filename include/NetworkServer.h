@@ -3,12 +3,14 @@
 
 #include <string>
 #include <netinet/in.h>
+#include "Database.h"
 
 class NetworkServer {
 private:
     int server_fd;
     int port;
     struct sockaddr_in address;
+    Database db;
 
     void handleClient(int client_fd);
 
@@ -21,4 +23,4 @@ public:
     void stop();
 };
 
-#endif
+#endif 

@@ -7,6 +7,42 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <cstring> 
+
+bool NetworkClient::authenticate(const std::string& username, const std::string& password) {
+    if (!connectToServer()) return false;
+
+    PacketHeader header;
+    header.magic = 0xABCD;
+    header.opcode = Opcode::AUTH;
+    header.filename_len = 0;
+    header.payload_size = sizeof(AuthPayload);
+
+    AuthPayload creds = {}; 
+    strncpy(creds.username, username.c_str(), sizeof(creds.username) - 1);
+    strncpy(creds.password, password.c_str(), sizeof(creds.password) - 1);
+
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+    send(sock_fd, &creds, sizeof(AuthPayload), 0);
+
+    std::cout << "[*] Authenticating as " << username << "...\n";
+
+    PacketHeader ack_header;
+    int ack_bytes = recv(sock_fd, &ack_header, sizeof(PacketHeader), 0);
+
+    if (ack_bytes == sizeof(PacketHeader) && ack_header.opcode == Opcode::ACK) {
+        if (ack_header.payload_size == 1) {
+            std::cout << "[+] Authentication successful! Connected to server.\n";
+            disconnect();
+            return true;
+        } else {
+            std::cerr << "[-] Invalid username or password.\n";
+        }
+    }
+    
+    disconnect();
+    return false;
+}
 
 NetworkClient::NetworkClient(const std::string& ip, int port) : server_ip(ip), port(port), sock_fd(-1) {}
 
