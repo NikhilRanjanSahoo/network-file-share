@@ -185,3 +185,43 @@ bool NetworkClient::download(const std::string& filename, const std::string& dst
     disconnect();
     return true;
 }
+
+bool NetworkClient::listFiles() {
+    if (!connectToServer()) return false;
+
+    PacketHeader header;
+    header.magic = 0xABCD;
+    header.opcode = Opcode::LIST;
+    header.filename_len = 0;
+    header.payload_size = 0;
+
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+
+    PacketHeader ack_header;
+    int ack_bytes = recv(sock_fd, &ack_header, sizeof(PacketHeader), 0);
+
+    if (ack_bytes == sizeof(PacketHeader) && ack_header.opcode == Opcode::ACK) {
+        uint32_t incoming_size = ack_header.payload_size;
+        
+        if (incoming_size > 0) {
+            
+            std::vector<char> buffer(incoming_size + 1, '\0');
+            uint32_t total_received = 0;
+            
+            while (total_received < incoming_size) {
+                int chunk = recv(sock_fd, buffer.data() + total_received, incoming_size - total_received, 0);
+                if (chunk <= 0) break;
+                total_received += chunk;
+            }
+            
+            std::cout << "\nServer files:\n" << buffer.data() << "\n";
+        } else {
+            std::cout << "\n[Empty Directory]\n";
+        }
+    } else {
+        std::cerr << "[-] Server failed to respond to LIST command.\n";
+    }
+
+    disconnect();
+    return true;
+}

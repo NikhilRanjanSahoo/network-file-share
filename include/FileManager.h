@@ -18,11 +18,12 @@ public:
     
     bool createDir(const std::string& dirPath);
     bool removeDir(const std::string& dirPath);
+    std::string listDirectory(const std::string& dirPath);
     
     
     std::string getFileInfo(const std::string& filepath);
 
-    // Concurrency control wrappers
+    
     bool acquireReadLock(int fd);
     bool acquireWriteLock(int fd);
     bool releaseLock(int fd);

@@ -18,6 +18,7 @@ public:
     void disconnect();
     
     bool authenticate(const std::string& username, const std::string& password);
+    bool listFiles();
     bool upload(const std::string& filepath);
     bool download(const std::string& filename, const std::string& dst_filepath);
 };

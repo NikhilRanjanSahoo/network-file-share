@@ -80,6 +80,7 @@ void NetworkServer::handleClient(int client_fd) {
 
         TransferService transferService;
         AuthenticationService authService(db); 
+        FileManager fm;
 
         switch (header.opcode) {
             case Opcode::AUTH: {
@@ -95,6 +96,24 @@ void NetworkServer::handleClient(int client_fd) {
                 ack_header.payload_size = success ? 1 : 0; 
                 
                 send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                break;
+            }
+            
+            case Opcode::LIST: {
+                
+                std::string list_output = fm.listDirectory("server_storage/public");
+                
+                PacketHeader ack_header;
+                ack_header.magic = 0xABCD;
+                ack_header.opcode = Opcode::ACK;
+                ack_header.filename_len = 0;
+                ack_header.payload_size = list_output.length();
+                
+                
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                if (!list_output.empty()) {
+                    send(client_fd, list_output.c_str(), list_output.length(), 0);
+                }
                 break;
             }
             case Opcode::UPLOAD:

@@ -7,7 +7,8 @@ enum Opcode : uint8_t {
     UPLOAD = 1,
     DOWNLOAD = 2,
     ACK = 3,
-    AUTH = 4
+    AUTH = 4,
+    LIST=5
 };
 
 #pragma pack(push, 1)
