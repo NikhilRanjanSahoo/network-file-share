@@ -8,7 +8,9 @@ enum Opcode : uint8_t {
     DOWNLOAD = 2,
     ACK = 3,
     AUTH = 4,
-    LIST=5
+    LIST = 5,
+    DELETE_FILE = 6,
+    RENAME_FILE = 7
 };
 
 #pragma pack(push, 1)
@@ -16,7 +18,8 @@ struct PacketHeader {
     uint16_t magic;         
     uint8_t opcode;         
     uint8_t filename_len;   
-    uint32_t payload_size;  
+    uint32_t payload_size;
+    char session_token[32];  
 };                          
 
 

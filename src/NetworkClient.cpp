@@ -9,41 +9,6 @@
 #include <sys/stat.h>
 #include <cstring> 
 
-bool NetworkClient::authenticate(const std::string& username, const std::string& password) {
-    if (!connectToServer()) return false;
-
-    PacketHeader header;
-    header.magic = 0xABCD;
-    header.opcode = Opcode::AUTH;
-    header.filename_len = 0;
-    header.payload_size = sizeof(AuthPayload);
-
-    AuthPayload creds = {}; 
-    strncpy(creds.username, username.c_str(), sizeof(creds.username) - 1);
-    strncpy(creds.password, password.c_str(), sizeof(creds.password) - 1);
-
-    send(sock_fd, &header, sizeof(PacketHeader), 0);
-    send(sock_fd, &creds, sizeof(AuthPayload), 0);
-
-    std::cout << "[*] Authenticating as " << username << "...\n";
-
-    PacketHeader ack_header;
-    int ack_bytes = recv(sock_fd, &ack_header, sizeof(PacketHeader), 0);
-
-    if (ack_bytes == sizeof(PacketHeader) && ack_header.opcode == Opcode::ACK) {
-        if (ack_header.payload_size == 1) {
-            std::cout << "[+] Authentication successful! Connected to server.\n";
-            disconnect();
-            return true;
-        } else {
-            std::cerr << "[-] Invalid username or password.\n";
-        }
-    }
-    
-    disconnect();
-    return false;
-}
-
 NetworkClient::NetworkClient(const std::string& ip, int port) : server_ip(ip), port(port), sock_fd(-1) {}
 
 NetworkClient::~NetworkClient() {
@@ -81,6 +46,59 @@ void NetworkClient::disconnect() {
     }
 }
 
+
+void loadSessionToken(PacketHeader& header) {
+    std::ifstream session_file(".session");
+    if (session_file.is_open()) {
+        session_file.read(header.session_token, 31);
+        session_file.close();
+    }
+}
+
+
+bool NetworkClient::authenticate(const std::string& username, const std::string& password) {
+    if (!connectToServer()) return false;
+
+    PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
+    header.magic = 0xABCD;
+    header.opcode = Opcode::AUTH;
+    header.payload_size = sizeof(AuthPayload);
+
+    AuthPayload creds = {}; 
+    strncpy(creds.username, username.c_str(), sizeof(creds.username) - 1);
+    strncpy(creds.password, password.c_str(), sizeof(creds.password) - 1);
+
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+    send(sock_fd, &creds, sizeof(AuthPayload), 0);
+
+    std::cout << "[*] Authenticating as " << username << "...\n";
+
+    PacketHeader ack_header;
+    int ack_bytes = recv(sock_fd, &ack_header, sizeof(PacketHeader), 0);
+
+    if (ack_bytes == sizeof(PacketHeader) && ack_header.opcode == Opcode::ACK) {
+        if (ack_header.payload_size == 1) {
+            std::cout << "[+] Authentication successful! Connected to server.\n";
+            
+            
+            std::ofstream session_file(".session");
+            if (session_file.is_open()) {
+                session_file << ack_header.session_token;
+                session_file.close();
+            }
+            
+            disconnect();
+            return true;
+        } else {
+            std::cerr << "[-] Invalid username or password.\n";
+        }
+    }
+    
+    disconnect();
+    return false;
+}
+
 bool NetworkClient::upload(const std::string& filepath) {
     if (!connectToServer()) return false;
 
@@ -104,9 +122,11 @@ bool NetworkClient::upload(const std::string& filepath) {
     file.seekg(0, std::ios::beg);
 
     PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
     header.magic = 0xABCD;
     header.opcode = Opcode::UPLOAD;
     header.filename_len = (uint8_t)filename.length();
+    loadSessionToken(header); 
     
     std::streamsize chunk_size = std::min(file_size, (std::streamsize)4096);
     std::vector<char> buffer(chunk_size);
@@ -137,10 +157,11 @@ bool NetworkClient::download(const std::string& filename, const std::string& dst
     if (!connectToServer()) return false;
 
     PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
     header.magic = 0xABCD;
     header.opcode = Opcode::DOWNLOAD;
     header.filename_len = (uint8_t)filename.length();
-    header.payload_size = 0;
+    loadSessionToken(header); 
 
     send(sock_fd, &header, sizeof(PacketHeader), 0);
     send(sock_fd, filename.c_str(), filename.length(), 0);
@@ -190,10 +211,10 @@ bool NetworkClient::listFiles() {
     if (!connectToServer()) return false;
 
     PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
     header.magic = 0xABCD;
     header.opcode = Opcode::LIST;
-    header.filename_len = 0;
-    header.payload_size = 0;
+    loadSessionToken(header); 
 
     send(sock_fd, &header, sizeof(PacketHeader), 0);
 
@@ -222,6 +243,53 @@ bool NetworkClient::listFiles() {
         std::cerr << "[-] Server failed to respond to LIST command.\n";
     }
 
+    disconnect();
+    return true;
+}
+
+bool NetworkClient::deleteRemoteFile(const std::string& filename) {
+    if (!connectToServer()) return false;
+
+    PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
+    header.magic = 0xABCD;
+    header.opcode = Opcode::DELETE_FILE;
+    header.filename_len = (uint8_t)filename.length();
+    loadSessionToken(header); 
+    
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+    send(sock_fd, filename.c_str(), filename.length(), 0);
+
+    PacketHeader ack;
+    if (recv(sock_fd, &ack, sizeof(PacketHeader), 0) > 0 && ack.opcode == Opcode::ACK) {
+        if (ack.payload_size == 1) std::cout << "[+] Deleted " << filename << " successfully.\n";
+        else std::cerr << "[-] Failed to delete (Access denied or file missing).\n";
+    }
+    
+    disconnect();
+    return true;
+}
+
+bool NetworkClient::renameRemoteFile(const std::string& oldName, const std::string& newName) {
+    if (!connectToServer()) return false;
+
+    std::string payload = oldName + "|" + newName;
+    PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
+    header.magic = 0xABCD;
+    header.opcode = Opcode::RENAME_FILE;
+    header.filename_len = (uint8_t)payload.length();
+    loadSessionToken(header); 
+    
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+    send(sock_fd, payload.c_str(), payload.length(), 0);
+
+    PacketHeader ack;
+    if (recv(sock_fd, &ack, sizeof(PacketHeader), 0) > 0 && ack.opcode == Opcode::ACK) {
+        if (ack.payload_size == 1) std::cout << "[+] Renamed to " << newName << " successfully.\n";
+        else std::cerr << "[-] Failed to rename (Access denied or file missing).\n";
+    }
+    
     disconnect();
     return true;
 }
