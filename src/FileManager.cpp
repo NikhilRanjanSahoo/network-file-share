@@ -10,6 +10,8 @@
 #include <dirent.h>
 #include <sstream>
 #include <iomanip>
+#include <openssl/evp.h>
+#include <fstream>
 
 FileManager::FileManager() {}
 FileManager::~FileManager() {}
@@ -76,24 +78,24 @@ std::string FileManager::listDirectory(const std::string& dirPath) {
     struct dirent* entry;
     int count = 1;
 
-    // Read the directory contents item by item
+    
     while ((entry = readdir(dir)) != nullptr) {
         std::string name = entry->d_name;
         
-        // Skip current (.) and parent (..) directory pointers
+        
         if (name == "." || name == "..") continue;
 
         std::string fullPath = dirPath + "/" + name;
         struct stat fileStat;
         
         if (stat(fullPath.c_str(), &fileStat) == 0) {
-            // Format output to align columns cleanly
+            
             oss << count++ << ". " << std::left << std::setw(25) << name;
             
             if (S_ISDIR(fileStat.st_mode)) {
                 oss << "<DIR>\n";
             } else {
-                // Calculate human-readable file sizes
+                
                 double size = fileStat.st_size;
                 if (size >= 1048576) {
                     oss << std::fixed << std::setprecision(1) << (size / 1048576.0) << " MB\n";
@@ -112,4 +114,47 @@ std::string FileManager::listDirectory(const std::string& dirPath) {
     if (result.empty()) return "[Empty Directory]\n";
     
     return result;
+}
+
+bool FileManager::deleteFile(const std::string& filepath) {
+    return unlink(filepath.c_str()) == 0;
+}
+
+bool FileManager::renameFile(const std::string& oldPath, const std::string& newPath) {
+    return rename(oldPath.c_str(), newPath.c_str()) == 0;
+}
+
+std::string FileManager::calculateSHA256(const std::string& filepath) {
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file.is_open()) return "ERROR_FILE_NOT_FOUND";
+
+    
+    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+    if (mdctx == nullptr) return "ERROR_CTX_INIT";
+
+    if (1 != EVP_DigestInit_ex(mdctx, EVP_sha256(), nullptr)) {
+        EVP_MD_CTX_free(mdctx);
+        return "ERROR_DIGEST_INIT";
+    }
+
+    char buffer[8192];
+    while (file.read(buffer, sizeof(buffer))) {
+        EVP_DigestUpdate(mdctx, buffer, file.gcount());
+    }
+    if (file.gcount() > 0) {
+        EVP_DigestUpdate(mdctx, buffer, file.gcount());
+    }
+
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hashLen = 0;
+    
+    EVP_DigestFinal_ex(mdctx, hash, &hashLen);
+    EVP_MD_CTX_free(mdctx); 
+
+    
+    std::ostringstream oss;
+    for (unsigned int i = 0; i < hashLen; i++) {
+        oss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
+    }
+    return oss.str();
 }
