@@ -100,7 +100,7 @@ void NetworkServer::handleClient(int client_fd) {
             }
             
             case Opcode::LIST: {
-                
+                std::cout << "[*] Client requested directory list.\n";
                 std::string list_output = fm.listDirectory("server_storage/public");
                 
                 PacketHeader ack_header;
@@ -116,12 +116,37 @@ void NetworkServer::handleClient(int client_fd) {
                 }
                 break;
             }
-            case Opcode::UPLOAD:
+            case Opcode::UPLOAD:{
+            	std::cout << "[*] Client requested upload.\n";
                 transferService.receiveFile(client_fd, filename, header.payload_size);
                 break;
-            case Opcode::DOWNLOAD:
+                }
+            case Opcode::DOWNLOAD:{
+            	std::cout << "[*] Client requested download.\n";
                 transferService.sendFile(client_fd, "server_storage/public/" + filename);
                 break;
+                }
+                
+            case Opcode::DELETE_FILE: {
+            	std::cout<< "[*] Client requested to delete: " << filename << "\n";
+                bool success = fm.deleteFile("server_storage/public/" + filename);
+                PacketHeader ack_header = {0xABCD, Opcode::ACK, 0, (uint32_t)(success ? 1 : 0)};
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                break;
+            }
+            case Opcode::RENAME_FILE: {
+            	std::cout << "[*] Client requested rename: " << filename << "\n";
+                size_t delim_pos = filename.find('|');
+                bool success = false;
+                if (delim_pos != std::string::npos) {
+                    std::string old_name = filename.substr(0, delim_pos);
+                    std::string new_name = filename.substr(delim_pos + 1);
+                    success = fm.renameFile("server_storage/public/" + old_name, "server_storage/public/" + new_name);
+                }
+                PacketHeader ack_header = {0xABCD, Opcode::ACK, 0, (uint32_t)(success ? 1 : 0)};
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                break;
+            }
             default:
                 std::cerr << "[-] Unknown opcode received.\n";
                 break;
