@@ -107,5 +107,21 @@ bool Database::authenticateUser(const std::string& username, const std::string& 
 }
 
 bool Database::saveTransfer(int user_id, const std::string& filename, const std::string& operation, int size, const std::string& status) {
-    return true; 
+    std::string sql = "INSERT INTO transfers (user_id, filename, operation, size, status) VALUES (?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "[-] Failed to prepare audit log statement.\n";
+        return false;
+    }
+
+    sqlite3_bind_int(stmt, 1, user_id);
+    sqlite3_bind_text(stmt, 2, filename.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, operation.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 4, size);
+    sqlite3_bind_text(stmt, 5, status.c_str(), -1, SQLITE_TRANSIENT);
+
+    bool success = (sqlite3_step(stmt) == SQLITE_DONE);
+    sqlite3_finalize(stmt);
+    return success;
 }

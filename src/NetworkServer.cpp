@@ -119,11 +119,13 @@ void NetworkServer::handleClient(int client_fd) {
             case Opcode::UPLOAD:{
             	std::cout << "[*] Client requested upload.\n";
                 transferService.receiveFile(client_fd, filename, header.payload_size);
+                db.saveTransfer(1, filename, "UPLOAD", header.payload_size, "SUCCESS");
                 break;
                 }
             case Opcode::DOWNLOAD:{
             	std::cout << "[*] Client requested download.\n";
                 transferService.sendFile(client_fd, "server_storage/public/" + filename);
+                db.saveTransfer(1, filename, "DOWNLOAD", 0, "SUCCESS");
                 break;
                 }
                 
@@ -132,6 +134,7 @@ void NetworkServer::handleClient(int client_fd) {
                 bool success = fm.deleteFile("server_storage/public/" + filename);
                 PacketHeader ack_header = {0xABCD, Opcode::ACK, 0, (uint32_t)(success ? 1 : 0)};
                 send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                db.saveTransfer(1, filename, "DELETE", 0, success ? "SUCCESS" : "FAILED");
                 break;
             }
             case Opcode::RENAME_FILE: {
@@ -145,6 +148,7 @@ void NetworkServer::handleClient(int client_fd) {
                 }
                 PacketHeader ack_header = {0xABCD, Opcode::ACK, 0, (uint32_t)(success ? 1 : 0)};
                 send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                db.saveTransfer(1, filename, "RENAME", 0, success ? "SUCCESS" : "FAILED");
                 break;
             }
             default:
