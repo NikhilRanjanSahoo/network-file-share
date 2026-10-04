@@ -14,7 +14,8 @@ enum Opcode : uint8_t {
     FILE_INFO = 8,
     CREATE_DIR = 9,   
     REMOVE_DIR = 10,
-    SEARCH = 11
+    SEARCH = 11,
+    HISTORY=12
 };
 
 #pragma pack(push, 1)

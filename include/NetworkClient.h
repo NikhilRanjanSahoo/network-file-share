@@ -27,6 +27,7 @@ public:
     bool getFileInfo(const std::string& filename);
     bool createDirectory(const std::string& dirname);
     bool removeDirectory(const std::string& dirname);
+    bool getHistory();
 };
 
 #endif 

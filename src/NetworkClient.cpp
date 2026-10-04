@@ -410,3 +410,35 @@ bool NetworkClient::searchFiles(const std::string& query) {
     disconnect();
     return true;
 }
+
+bool NetworkClient::getHistory() {
+    if (!connectToServer()) return false;
+
+    PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
+    header.magic = 0xABCD;
+    header.opcode = Opcode::HISTORY;
+    loadSessionToken(header);
+
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+
+    PacketHeader ack;
+    if (recv(sock_fd, &ack, sizeof(PacketHeader), 0) > 0 && ack.opcode == Opcode::ACK) {
+        uint32_t incoming_size = ack.payload_size;
+        
+        if (incoming_size > 0) {
+            std::vector<char> buffer(incoming_size + 1, '\0');
+            uint32_t total_received = 0;
+            
+            while (total_received < incoming_size) {
+                int chunk = recv(sock_fd, buffer.data() + total_received, incoming_size - total_received, 0);
+                if (chunk <= 0) break;
+                total_received += chunk;
+            }
+            std::cout << "\n" << buffer.data() << "\n";
+        }
+    }
+    
+    disconnect();
+    return true;
+}

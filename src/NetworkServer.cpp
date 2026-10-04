@@ -271,6 +271,34 @@ void NetworkServer::handleClient(int client_fd) {
                 }
                 break;
             }
+            
+            case Opcode::HISTORY: {
+                std::cout << "[*] Client requested transfer history.\n";
+                
+                std::string token(header.session_token);
+                std::string active_role = "Guest";
+                {
+                    std::lock_guard<std::mutex> lock(session_mutex);
+                    if (active_sessions.count(token)) active_role = active_sessions[token];
+                }
+
+                if (active_role != "Admin" && active_role != "Faculty") {
+                    std::string denied = "[-] Security Block: Log access restricted to Admin and Faculty roles.\n";
+                    PacketHeader ack = {0xABCD, Opcode::ACK, 0, (uint32_t)denied.length()};
+                    send(client_fd, &ack, sizeof(PacketHeader), 0);
+                    send(client_fd, denied.c_str(), denied.length(), 0);
+                    break;
+                }
+
+                std::string history = db.getHistory();
+                PacketHeader ack = {0xABCD, Opcode::ACK, 0, (uint32_t)history.length()};
+                send(client_fd, &ack, sizeof(PacketHeader), 0);
+                
+                if (!history.empty()) {
+                    send(client_fd, history.c_str(), history.length(), 0);
+                }
+                break;
+            }
             default: {
                 std::cerr << "[-] Unknown opcode received.\n";
                 break;

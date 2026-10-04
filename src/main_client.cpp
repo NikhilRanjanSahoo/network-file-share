@@ -47,6 +47,8 @@ int main(int argc, char* argv[]) {
         client.removeDirectory(argv[2]);
     } else if (action == "search" && argc == 3) {
         client.searchFiles(argv[2]);
+    } else if (action == "history" && argc == 2) {
+        client.getHistory();
     } else {
         std::cerr << "[-] Unknown command.\n";
     }

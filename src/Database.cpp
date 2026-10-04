@@ -146,3 +146,27 @@ bool Database::saveFileRecord(int owner_id, const std::string& filename, const s
     
     return success;
 }
+std::string Database::getHistory() {
+    std::string sql = "SELECT id, user_id, filename, operation, status, timestamp FROM transfers ORDER BY id DESC LIMIT 15;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return "[-] Failed to fetch history.\n";
+    }
+
+    std::string result = "Transfer Audit Log:\n------------------------------------------------------------\n";
+    result += "ID | User | File | Op | Status | Timestamp\n";
+    result += "------------------------------------------------------------\n";
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        result += std::to_string(sqlite3_column_int(stmt, 0)) + " | ";
+        result += std::to_string(sqlite3_column_int(stmt, 1)) + " | ";
+        result += reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2)); result += " | ";
+        result += reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)); result += " | ";
+        result += reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4)); result += " | ";
+        result += reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5)); result += "\n";
+    }
+    
+    sqlite3_finalize(stmt);
+    return result.empty() ? "[-] No transfers found.\n" : result;
+}
