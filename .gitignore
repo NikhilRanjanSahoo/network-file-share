@@ -1,2 +1,37 @@
-client
-server
+# Compiled binaries and object files
+*.o
+*.so
+*.a
+bin/
+build/
+file_client
+file_server
+
+# SQLite databases & runtime storage
+*.db
+*.db-journal
+*.db-wal
+database/*.db
+
+# Session files & logs
+.session
+*.log
+
+# Server storage & client download dumps
+server_storage/
+downloads/
+
+# Test / scratch transfer files
+custom_file.txt
+my_copy.txt
+new_data.txt
+test.txt
+test_payload.txt
+test_upload.txt
+uploaded_file.txt
+
+# Editor / IDE artifacts
+.vscode/
+.idea/
+*.swp
+*~
