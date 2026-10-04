@@ -1,22 +1,29 @@
 #include "../include/AuthenticationService.h"
 #include <iostream>
 
-AuthenticationService::AuthenticationService(Database& database) : db(database) {}
+AuthenticationService::AuthenticationService(Database& database)
+    : db(database), currentUser(""), currentRole("Guest") {}
 
 bool AuthenticationService::authenticate(const std::string& username, const std::string& password) {
-    if (db.authenticateUser(username, password, currentRole)) {
+    std::string role;
+    if (db.authenticateUser(username, password, role)) {
         currentUser = username;
-        std::cout << "[+] User '" << username << "' authenticated successfully. Role: " << currentRole << "\n";
+        currentRole = role;
+        std::cout << "[+] Authentication successful for user '" << username 
+                  << "' [Role: " << role << "]\n";
         return true;
     }
-    std::cerr << "[-] Authentication failed for user: " << username << "\n";
+
+    std::cout << "[-] Authentication failed for user '" << username << "'\n";
+    currentUser = "";
+    currentRole = "Guest";
     return false;
 }
 
-std::string AuthenticationService::getUserRole() {
+std::string AuthenticationService::getUserRole() const {
     return currentRole;
 }
 
-std::string AuthenticationService::getCurrentUser() {
+std::string AuthenticationService::getCurrentUser() const {
     return currentUser;
 }

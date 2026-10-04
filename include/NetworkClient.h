@@ -9,11 +9,12 @@ private:
     int sock_fd;
     std::string server_ip;
     int port;
+    std::string current_role = "Guest";
 
 public:
     NetworkClient(const std::string& ip, int port);
     ~NetworkClient();
-
+    std::string getRole() const { return current_role; }
     bool connectToServer();
     void disconnect();
     

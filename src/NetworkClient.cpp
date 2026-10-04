@@ -62,41 +62,47 @@ bool NetworkClient::authenticate(const std::string& username, const std::string&
     PacketHeader header;
     memset(&header, 0, sizeof(PacketHeader));
     header.magic = 0xABCD;
-    header.opcode = Opcode::AUTH;
+    header.opcode = Opcode::AUTH; 
+    
+    AuthPayload payload;
+    memset(&payload, 0, sizeof(AuthPayload));
+    strncpy(payload.username, username.c_str(), 31);
+    strncpy(payload.password, password.c_str(), 31);
+    
     header.payload_size = sizeof(AuthPayload);
 
-    AuthPayload creds = {}; 
-    strncpy(creds.username, username.c_str(), sizeof(creds.username) - 1);
-    strncpy(creds.password, password.c_str(), sizeof(creds.password) - 1);
-
     send(sock_fd, &header, sizeof(PacketHeader), 0);
-    send(sock_fd, &creds, sizeof(AuthPayload), 0);
-
-    std::cout << "[*] Authenticating as " << username << "...\n";
+    send(sock_fd, &payload, sizeof(AuthPayload), 0);
 
     PacketHeader ack_header;
-    int ack_bytes = recv(sock_fd, &ack_header, sizeof(PacketHeader), 0);
-
-    if (ack_bytes == sizeof(PacketHeader) && ack_header.opcode == Opcode::ACK) {
-        if (ack_header.payload_size == 1) {
-            std::cout << "[+] Authentication successful! Connected to server.\n";
+    if (recv(sock_fd, &ack_header, sizeof(PacketHeader), 0) > 0 && ack_header.opcode == Opcode::ACK) {
+        if (ack_header.payload_size > 0) {
+            std::vector<char> buffer(ack_header.payload_size + 1, '\0');
+            recv(sock_fd, buffer.data(), ack_header.payload_size, 0);
             
+            std::string response(buffer.data()); 
             
-            std::ofstream session_file(".session");
-            if (session_file.is_open()) {
-                session_file << ack_header.session_token;
-                session_file.close();
+            if (response.rfind("SUCCESS:", 0) == 0) {
+                
+                size_t colon_pos = response.find(':');
+                if (colon_pos != std::string::npos) {
+                    current_role = response.substr(colon_pos + 1);
+                }
+                
+                std::ofstream session_out(".session");
+                if (session_out.is_open()) {
+                    session_out << username;
+                    session_out.close();
+                }
+                
+                disconnect();
+                return true;
             }
-            
-            disconnect();
-            return true;
-        } else {
-            std::cerr << "[-] Invalid username or password.\n";
         }
     }
     
     disconnect();
-    return false;
+    return false; 
 }
 
 bool NetworkClient::upload(const std::string& filepath) {

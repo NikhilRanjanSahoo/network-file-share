@@ -1,5 +1,5 @@
-#ifndef AUTHENTICATIONSERVICE_H
-#define AUTHENTICATIONSERVICE_H
+#ifndef AUTHENTICATION_SERVICE_H
+#define AUTHENTICATION_SERVICE_H
 
 #include <string>
 #include "Database.h"
@@ -11,12 +11,13 @@ private:
     std::string currentRole;
 
 public:
-    AuthenticationService(Database& database);
-    
+    explicit AuthenticationService(Database& database);
+
     
     bool authenticate(const std::string& username, const std::string& password);
-    std::string getUserRole();
-    std::string getCurrentUser();
+
+    std::string getUserRole() const;
+    std::string getCurrentUser() const;
 };
 
 #endif 

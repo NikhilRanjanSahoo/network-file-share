@@ -33,7 +33,6 @@ bool Database::executeQuery(const std::string& query) {
 }
 
 bool Database::initializeTables() {
-    
     std::string createUsers = "CREATE TABLE IF NOT EXISTS users ("
                               "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                               "username TEXT UNIQUE NOT NULL, "
@@ -42,7 +41,6 @@ bool Database::initializeTables() {
                               "home_directory TEXT, "
                               "created_at DATETIME DEFAULT CURRENT_TIMESTAMP);";
 
-    
     std::string createFiles = "CREATE TABLE IF NOT EXISTS files ("
                               "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                               "owner_id INTEGER, "
@@ -54,7 +52,6 @@ bool Database::initializeTables() {
                               "modified_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
                               "FOREIGN KEY(owner_id) REFERENCES users(id));";
 
-    
     std::string createTransfers = "CREATE TABLE IF NOT EXISTS transfers ("
                                   "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                                   "user_id INTEGER, "
@@ -65,9 +62,67 @@ bool Database::initializeTables() {
                                   "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, "
                                   "FOREIGN KEY(user_id) REFERENCES users(id));";
 
-    return executeQuery(createUsers) && executeQuery(createFiles) && executeQuery(createTransfers);
+    bool success = executeQuery(createUsers) && executeQuery(createFiles) && executeQuery(createTransfers);
+    
+    if (success) {
+        checkAndBootstrapAdmin();
+    }
+    return success;
 }
 
+bool Database::checkAndBootstrapAdmin() {
+    std::string count_sql = "SELECT COUNT(*) FROM users;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, count_sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            int count = sqlite3_column_int(stmt, 0);
+            sqlite3_finalize(stmt);
+            
+            if (count == 0) {
+                std::cout << "\n====================================================\n";
+                std::cout << "     EFSS INITIALIZATION & POLICY SETUP WIZARD      \n";
+                std::cout << "====================================================\n";
+                std::cout << "[!] Database is empty. Root Administrator required.\n";
+                
+                std::string admin_user, admin_pass;
+                std::cout << "[*] Enter Root Admin Username: ";
+                std::cin >> admin_user;
+                std::cout << "[*] Enter Root Admin Password: ";
+                std::cin >> admin_pass;
+                
+                saveUser(admin_user, admin_pass, "Admin", "./server_storage/admin");
+                std::cout << "[+] Root Admin account provisioned successfully!\n";
+                char choice = 'y';
+                while (true) {
+                    std::cout << "\nWould you like to add another user profile (Faculty/Student)? (y/n): ";
+                    std::cin >> choice;
+                    if (choice == 'n' || choice == 'N') break;
+                    
+                    std::string u, p, r;
+                    std::cout << "[*] Enter Username: ";
+                    std::cin >> u;
+                    std::cout << "[*] Enter Password: ";
+                    std::cin >> p;
+                    std::cout << "[*] Enter Role (Admin / Faculty / Student): ";
+                    std::cin >> r;
+                    
+                    if (r != "Admin" && r != "Faculty" && r != "Student") {
+                        r = "Student"; // Default fallback policy
+                        std::cout << "[!] Invalid role specified. Defaulting to 'Student'.\n";
+                    }
+                    
+                    saveUser(u, p, r, "./server_storage/" + u);
+                    std::cout << "[+] Policy updated: User '" << u << "' created with role [" << r << "].\n";
+                }
+                std::cout << "====================================================\n";
+                std::cout << "[+] Setup complete. Starting server engine...\n\n";
+                return true;
+            }
+        }
+    }
+    return true;
+}
 
 bool Database::saveUser(const std::string& username, const std::string& password, const std::string& role, const std::string& home_dir) {
     std::string sql = "INSERT INTO users (username, password, role, home_directory) VALUES (?, ?, ?, ?);";
@@ -75,7 +130,6 @@ bool Database::saveUser(const std::string& username, const std::string& password
     
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) return false;
 
-    
     sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, password.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 3, role.c_str(), -1, SQLITE_TRANSIENT);
@@ -97,7 +151,6 @@ bool Database::authenticateUser(const std::string& username, const std::string& 
 
     bool success = false;
     if (sqlite3_step(stmt) == SQLITE_ROW) {
-        
         out_role = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
         success = true;
     }
@@ -146,6 +199,7 @@ bool Database::saveFileRecord(int owner_id, const std::string& filename, const s
     
     return success;
 }
+
 std::string Database::getHistory() {
     std::string sql = "SELECT id, user_id, filename, operation, status, timestamp FROM transfers ORDER BY id DESC LIMIT 15;";
     sqlite3_stmt* stmt;
@@ -169,4 +223,60 @@ std::string Database::getHistory() {
     
     sqlite3_finalize(stmt);
     return result.empty() ? "[-] No transfers found.\n" : result;
+}
+
+std::string Database::getUserRole(const std::string& username) {
+    std::string role = "Guest";
+    std::string sql = "SELECT role FROM users WHERE username = ? LIMIT 1;";
+    sqlite3_stmt* stmt = nullptr;
+
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            const unsigned char* val = sqlite3_column_text(stmt, 0);
+            if (val) {
+                role = reinterpret_cast<const char*>(val);
+            }
+        }
+        sqlite3_finalize(stmt);
+    }
+    return role;
+}
+
+std::string Database::getTransferHistoryLogs() {
+    std::string logs;
+    
+    std::string sql = "SELECT t.timestamp, u.username, t.operation, t.filename, t.status "
+                      "FROM transfers t "
+                      "JOIN users u ON t.user_id = u.id "
+                      "ORDER BY t.id DESC LIMIT 50;";
+    sqlite3_stmt* stmt = nullptr;
+
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
+        logs += "======================================================================\n";
+        logs += "TIMESTAMP           | USERNAME   | OPERATION | FILENAME       | STATUS\n";
+        logs += "======================================================================\n";
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            const char* time_val = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+            const char* user_val = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+            const char* op_val   = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+            const char* file_val = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+            const char* stat_val = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+
+            logs += std::string(time_val ? time_val : "-") + " | " +
+                    std::string(user_val ? user_val : "-") + " | " +
+                    std::string(op_val   ? op_val   : "-") + " | " +
+                    std::string(file_val ? file_val : "-") + " | " +
+                    std::string(stat_val ? stat_val : "-") + "\n";
+        }
+        sqlite3_finalize(stmt);
+    } else {
+        logs = "[-] Failed to fetch transfer audit logs.\n";
+    }
+
+    if (logs.empty() || logs.find('|') == std::string::npos) {
+        logs = "[No transfer history recorded yet.]\n";
+    }
+
+    return logs;
 }

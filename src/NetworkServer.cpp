@@ -3,6 +3,7 @@
 #include "../include/protocol.h"
 #include "../include/AuthenticationService.h"
 #include "../include/PermissionService.h"
+#include "../include/Database.h"
 #include <iostream>
 #include <thread>
 #include <unistd.h>
@@ -86,31 +87,45 @@ void NetworkServer::handleClient(int client_fd) {
 
         switch (header.opcode) {
             case Opcode::AUTH: {
-                AuthPayload auth_data;
-                recv(client_fd, &auth_data, sizeof(AuthPayload), 0);
-                
-                bool is_valid = authService.authenticate(auth_data.username, auth_data.password);
-                
-                PacketHeader ack = {0xABCD, Opcode::ACK, 0, 0};
-                memset(ack.session_token, 0, 32);
+    		AuthPayload auth_payload;
+    		memset(&auth_payload, 0, sizeof(AuthPayload));
 
-                if (is_valid) {
-                    std::string assigned_role = (std::string(auth_data.username) == "admin") ? "Admin" : "Student";
-                    
-                    std::string token = generateSessionToken();
-                    {
-                        std::lock_guard<std::mutex> lock(session_mutex);
-                        active_sessions[token] = assigned_role;
-                    }
-                    
-                    strncpy(ack.session_token, token.c_str(), 31);
-                    ack.payload_size = 1; 
-                    std::cout << "[+] User '" << auth_data.username << "' logged in. Role: " << assigned_role << "\n";
-                }
-                
-                send(client_fd, &ack, sizeof(PacketHeader), 0);
-                break;
-            } 
+    
+    		int bytes_received = recv(client_fd, &auth_payload, sizeof(AuthPayload), MSG_WAITALL);
+    		if (bytes_received != sizeof(AuthPayload)) {
+        		std::cerr << "[-] Incomplete AuthPayload received from client.\n";
+        		break;
+    		}
+
+    
+    		auth_payload.username[sizeof(auth_payload.username) - 1] = '\0';
+    		auth_payload.password[sizeof(auth_payload.password) - 1] = '\0';
+
+    
+    		AuthenticationService auth(db);
+    		bool is_authenticated = auth.authenticate(auth_payload.username, auth_payload.password);
+
+    		std::string response_payload;
+    		PacketHeader ack_header;
+    		memset(&ack_header, 0, sizeof(PacketHeader));
+    		ack_header.magic = 0xABCD;
+    		ack_header.opcode = Opcode::ACK;
+
+    		if (is_authenticated) {
+        		std::string role = auth.getUserRole();
+        		response_payload = "SUCCESS:" + role;
+        		std::cout << "[+] User '" << auth_payload.username << "' logged in. Role: " << role << "\n";
+    		} else {
+        		response_payload = "FAILURE:Invalid credentials";
+    		}
+
+    		ack_header.payload_size = static_cast<uint32_t>(response_payload.length());
+
+    		
+    		send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+    		send(client_fd, response_payload.c_str(), response_payload.length(), 0);
+    		break;
+	    } 
 
             case Opcode::DELETE_FILE: {
                 std::cout << "[*] Client requested to delete: " << filename << "\n";
@@ -273,32 +288,43 @@ void NetworkServer::handleClient(int client_fd) {
             }
             
             case Opcode::HISTORY: {
-                std::cout << "[*] Client requested transfer history.\n";
-                
-                std::string token(header.session_token);
-                std::string active_role = "Guest";
-                {
-                    std::lock_guard<std::mutex> lock(session_mutex);
-                    if (active_sessions.count(token)) active_role = active_sessions[token];
-                }
+    
+    		char session_user[33] = {0};
+    		strncpy(session_user, header.session_token, 32);
+    		std::string role = db.getUserRole(session_user); 
 
-                if (active_role != "Admin" && active_role != "Faculty") {
-                    std::string denied = "[-] Security Block: Log access restricted to Admin and Faculty roles.\n";
-                    PacketHeader ack = {0xABCD, Opcode::ACK, 0, (uint32_t)denied.length()};
-                    send(client_fd, &ack, sizeof(PacketHeader), 0);
-                    send(client_fd, denied.c_str(), denied.length(), 0);
-                    break;
-                }
+    		std::cout << "[*] User '" << session_user << "' (" << role << ") requested transfer history.\n";
 
-                std::string history = db.getHistory();
-                PacketHeader ack = {0xABCD, Opcode::ACK, 0, (uint32_t)history.length()};
-                send(client_fd, &ack, sizeof(PacketHeader), 0);
-                
-                if (!history.empty()) {
-                    send(client_fd, history.c_str(), history.length(), 0);
-                }
-                break;
-            }
+    		if (role != "Admin" && role != "Faculty") {
+        		std::string err_msg = "[-] Security Block: Log access restricted to Admin and Faculty roles.\n";
+        		PacketHeader ack;
+        		memset(&ack, 0, sizeof(PacketHeader));
+        		ack.magic = 0xABCD;
+        		ack.opcode = Opcode::ACK;
+        		ack.payload_size = err_msg.length();
+
+        		send(client_fd, &ack, sizeof(PacketHeader), 0);
+        		send(client_fd, err_msg.c_str(), err_msg.length(), 0);
+        		break;
+    		}
+
+
+    		std::string history_data = db.getTransferHistoryLogs(); 
+    		if (history_data.empty()) {
+        		history_data = "[No transfer history recorded yet.]\n";
+    		}
+
+    		PacketHeader ack;
+    		memset(&ack, 0, sizeof(PacketHeader));
+    		ack.magic = 0xABCD;
+    		ack.opcode = Opcode::ACK;
+    		ack.payload_size = history_data.length();
+
+    		send(client_fd, &ack, sizeof(PacketHeader), 0);
+    		send(client_fd, history_data.c_str(), history_data.length(), 0);
+    		break;
+	    }
+	    
             default: {
                 std::cerr << "[-] Unknown opcode received.\n";
                 break;
