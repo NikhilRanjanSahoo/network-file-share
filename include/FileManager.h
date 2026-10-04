@@ -18,15 +18,17 @@ public:
     
     bool createDir(const std::string& dirPath);
     bool removeDir(const std::string& dirPath);
-    std::string listDirectory(const std::string& dirPath);
-    
-    
-    std::string getFileInfo(const std::string& filepath);
-
-    
+    bool deleteFile(const std::string& filepath);
+    bool renameFile(const std::string& oldPath, const std::string& newPath);
     bool acquireReadLock(int fd);
     bool acquireWriteLock(int fd);
     bool releaseLock(int fd);
+    
+    std::string getFileInfo(const std::string& filepath);
+    std::string listDirectory(const std::string& dirPath);
+    std::string calculateSHA256(const std::string& filepath);
+    
+
 };
 
 #endif

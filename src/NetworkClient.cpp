@@ -293,3 +293,38 @@ bool NetworkClient::renameRemoteFile(const std::string& oldName, const std::stri
     disconnect();
     return true;
 }
+bool NetworkClient::getFileInfo(const std::string& filename) {
+    if (!connectToServer()) return false;
+
+    PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
+    header.magic = 0xABCD;
+    header.opcode = Opcode::FILE_INFO;
+    header.filename_len = (uint8_t)filename.length();
+    loadSessionToken(header); 
+
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+    send(sock_fd, filename.c_str(), filename.length(), 0);
+
+    PacketHeader ack_header;
+    if (recv(sock_fd, &ack_header, sizeof(PacketHeader), 0) > 0 && ack_header.opcode == Opcode::ACK) {
+        uint32_t incoming_size = ack_header.payload_size;
+        
+        if (incoming_size > 0) {
+            std::vector<char> buffer(incoming_size + 1, '\0');
+            uint32_t total_received = 0;
+            while (total_received < incoming_size) {
+                int chunk = recv(sock_fd, buffer.data() + total_received, incoming_size - total_received, 0);
+                if (chunk <= 0) break;
+                total_received += chunk;
+            }
+            
+            std::cout << "\n" << buffer.data() << "\n";
+        }
+    } else {
+        std::cerr << "[-] Failed to retrieve file info.\n";
+    }
+
+    disconnect();
+    return true;
+}

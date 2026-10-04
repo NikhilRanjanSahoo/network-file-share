@@ -21,6 +21,9 @@ public:
     bool listFiles();
     bool upload(const std::string& filepath);
     bool download(const std::string& filename, const std::string& dst_filepath);
+    bool deleteRemoteFile(const std::string& filename);
+    bool renameRemoteFile(const std::string& oldName, const std::string& newName);
+    bool getFileInfo(const std::string& filename);
 };
 
 #endif 

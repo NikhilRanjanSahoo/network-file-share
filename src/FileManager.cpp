@@ -12,6 +12,8 @@
 #include <iomanip>
 #include <openssl/evp.h>
 #include <fstream>
+#include <sys/stat.h>
+#include <sstream>
 
 FileManager::FileManager() {}
 FileManager::~FileManager() {}
@@ -36,14 +38,6 @@ bool FileManager::createDir(const std::string& dirPath) {
 
 bool FileManager::removeDir(const std::string& dirPath) {
     return rmdir(dirPath.c_str()) == 0;
-}
-
-std::string FileManager::getFileInfo(const std::string& filepath) {
-    struct stat fileStat;
-    if (stat(filepath.c_str(), &fileStat) < 0) {
-        return "File not found.";
-    }
-    return "Size: " + std::to_string(fileStat.st_size) + " bytes";
 }
 
 bool FileManager::acquireReadLock(int fd) {
@@ -157,4 +151,23 @@ std::string FileManager::calculateSHA256(const std::string& filepath) {
         oss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
     }
     return oss.str();
+}
+std::string FileManager::getFileInfo(const std::string& filepath) {
+    struct stat fileStat;
+    
+    
+    if (stat(filepath.c_str(), &fileStat) < 0) {
+        return "[-] Error: File does not exist or access denied.\n";
+    }
+
+    std::ostringstream info;
+    info << "File: " << filepath << "\n"
+         << "Size: " << fileStat.st_size << " bytes\n"
+         << "Permissions: " 
+         << ((fileStat.st_mode & S_IRUSR) ? "r" : "-")
+         << ((fileStat.st_mode & S_IWUSR) ? "w" : "-")
+         << ((fileStat.st_mode & S_IXUSR) ? "x" : "-") << "\n"
+         << "Last Modified: " << ctime(&fileStat.st_mtime);
+
+    return info.str();
 }

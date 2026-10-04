@@ -206,7 +206,26 @@ void NetworkServer::handleClient(int client_fd) {
                 db.saveTransfer(1, filename, "DOWNLOAD", 0, "SUCCESS");
                 break;
             }
-
+            
+            case Opcode::FILE_INFO: {
+                std::cout << "[*] Client requested info for: " << filename << "\n";
+                
+                std::string info = fm.getFileInfo("server_storage/public/" + filename);
+                
+                PacketHeader ack_header;
+                memset(&ack_header, 0, sizeof(PacketHeader));
+                ack_header.magic = 0xABCD;
+                ack_header.opcode = Opcode::ACK;
+                ack_header.payload_size = (uint32_t)info.length();
+                
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                
+                if (!info.empty()) {
+                    send(client_fd, info.c_str(), info.length(), 0);
+                }
+                break;
+            }
+            
             default: {
                 std::cerr << "[-] Unknown opcode received.\n";
                 break;

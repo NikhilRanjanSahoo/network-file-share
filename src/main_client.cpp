@@ -29,6 +29,18 @@ int main(int argc, char* argv[]) {
         if (argc < 3) return 1;
         std::string dst = (argc == 4) ? argv[3] : "";
         client.download(argv[2], dst);
+    } else if (action == "delete") {
+        if (argc < 3) return 1;
+        client.deleteRemoteFile(argv[2]);
+    } else if (action == "rename") {
+        if (argc < 4) {
+            std::cerr << "Usage: ./file_client rename <old_name> <new_name>\n";
+            return 1;
+        }
+        client.renameRemoteFile(argv[2], argv[3]);
+    
+    } else if ( action == "info" && argc == 3) {
+        client.getFileInfo(argv[2]);
     } else {
         std::cerr << "[-] Unknown command.\n";
     }
