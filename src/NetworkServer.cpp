@@ -253,6 +253,24 @@ void NetworkServer::handleClient(int client_fd) {
                 send(client_fd, &ack_header, sizeof(PacketHeader), 0);
                 break;
             }
+            
+            case Opcode::SEARCH: {
+                std::cout << "[*] Client requested search for: " << filename << "\n";
+                std::string search_results = fm.searchFiles("server_storage/", filename);
+                
+                PacketHeader ack_header;
+                memset(&ack_header, 0, sizeof(PacketHeader));
+                ack_header.magic = 0xABCD;
+                ack_header.opcode = Opcode::ACK;
+                ack_header.payload_size = (uint32_t)search_results.length();
+                
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                
+                if (!search_results.empty()) {
+                    send(client_fd, search_results.c_str(), search_results.length(), 0);
+                }
+                break;
+            }
             default: {
                 std::cerr << "[-] Unknown opcode received.\n";
                 break;

@@ -13,7 +13,8 @@ enum Opcode : uint8_t {
     RENAME_FILE = 7,
     FILE_INFO = 8,
     CREATE_DIR = 9,   
-    REMOVE_DIR = 10
+    REMOVE_DIR = 10,
+    SEARCH = 11
 };
 
 #pragma pack(push, 1)

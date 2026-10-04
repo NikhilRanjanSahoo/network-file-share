@@ -45,6 +45,8 @@ int main(int argc, char* argv[]) {
         client.createDirectory(argv[2]);
     } else if (action == "rmdir" && argc == 3) {
         client.removeDirectory(argv[2]);
+    } else if (action == "search" && argc == 3) {
+        client.searchFiles(argv[2]);
     } else {
         std::cerr << "[-] Unknown command.\n";
     }

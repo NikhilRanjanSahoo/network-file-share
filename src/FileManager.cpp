@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <sstream>
+#include <filesystem>
 
 FileManager::FileManager() {}
 FileManager::~FileManager() {}
@@ -180,4 +181,28 @@ bool FileManager::removeDir(const std::string& dirpath) {
     	perror("[-] rmdir failed");
     	return false;
     }
+}
+
+std::string FileManager::searchFiles(const std::string& directory, const std::string& query) {
+    std::string results = "";
+    
+    try {
+        
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
+            if (entry.is_regular_file()) {
+                std::string path = entry.path().string();
+                if (path.find(query) != std::string::npos) {
+                    results += path + "\n";
+                }
+            }
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        return "[-] Error accessing filesystem: " + std::string(e.what()) + "\n";
+    }
+    
+    if (results.empty()) {
+        return "[-] No files found matching '" + query + "'.\n";
+    }
+    
+    return results;
 }

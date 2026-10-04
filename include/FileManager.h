@@ -28,6 +28,7 @@ public:
     std::string getFileInfo(const std::string& filepath);
     std::string listDirectory(const std::string& dirPath);
     std::string calculateSHA256(const std::string& filepath);
+    std::string searchFiles(const std::string& directory, const std::string& query);
     
 
 };
