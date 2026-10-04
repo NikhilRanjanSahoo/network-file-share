@@ -226,6 +226,33 @@ void NetworkServer::handleClient(int client_fd) {
                 break;
             }
             
+            case Opcode::CREATE_DIR: {
+                std::cout << "[*] Client requested to create directory: " << filename << "\n";
+                bool success = fm.createDir("server_storage/" + filename); 
+                
+                PacketHeader ack_header;
+                memset(&ack_header, 0, sizeof(PacketHeader));
+                ack_header.magic = 0xABCD;
+                ack_header.opcode = Opcode::ACK;
+                ack_header.payload_size = success ? 1 : 0;
+                
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                break;
+            }
+
+            case Opcode::REMOVE_DIR: {
+                std::cout << "[*] Client requested to remove directory: " << filename << "\n";
+                bool success = fm.removeDir("server_storage/" + filename);
+                
+                PacketHeader ack_header;
+                memset(&ack_header, 0, sizeof(PacketHeader));
+                ack_header.magic = 0xABCD;
+                ack_header.opcode = Opcode::ACK;
+                ack_header.payload_size = success ? 1 : 0;
+                
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
+                break;
+            }
             default: {
                 std::cerr << "[-] Unknown opcode received.\n";
                 break;

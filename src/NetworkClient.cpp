@@ -328,3 +328,48 @@ bool NetworkClient::getFileInfo(const std::string& filename) {
     disconnect();
     return true;
 }
+bool NetworkClient::createDirectory(const std::string& dirname) {
+    if (!connectToServer()) return false;
+
+    PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
+    header.magic = 0xABCD;
+    header.opcode = Opcode::CREATE_DIR;
+    header.filename_len = (uint8_t)dirname.length();
+    loadSessionToken(header);
+
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+    send(sock_fd, dirname.c_str(), dirname.length(), 0);
+
+    PacketHeader ack;
+    if (recv(sock_fd, &ack, sizeof(PacketHeader), 0) > 0 && ack.opcode == Opcode::ACK) {
+        if (ack.payload_size == 1) std::cout << "[+] Directory '" << dirname << "' created successfully.\n";
+        else std::cerr << "[-] Failed to create directory (It may already exist or access denied).\n";
+    }
+    
+    disconnect();
+    return true;
+}
+
+bool NetworkClient::removeDirectory(const std::string& dirname) {
+    if (!connectToServer()) return false;
+
+    PacketHeader header;
+    memset(&header, 0, sizeof(PacketHeader));
+    header.magic = 0xABCD;
+    header.opcode = Opcode::REMOVE_DIR;
+    header.filename_len = (uint8_t)dirname.length();
+    loadSessionToken(header);
+
+    send(sock_fd, &header, sizeof(PacketHeader), 0);
+    send(sock_fd, dirname.c_str(), dirname.length(), 0);
+
+    PacketHeader ack;
+    if (recv(sock_fd, &ack, sizeof(PacketHeader), 0) > 0 && ack.opcode == Opcode::ACK) {
+        if (ack.payload_size == 1) std::cout << "[+] Directory '" << dirname << "' removed successfully.\n";
+        else std::cerr << "[-] Failed to remove directory (It must be empty or may not exist).\n";
+    }
+    
+    disconnect();
+    return true;
+}

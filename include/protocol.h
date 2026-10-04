@@ -11,7 +11,9 @@ enum Opcode : uint8_t {
     LIST = 5,
     DELETE_FILE = 6,
     RENAME_FILE = 7,
-    FILE_INFO = 8
+    FILE_INFO = 8,
+    CREATE_DIR = 9,   
+    REMOVE_DIR = 10
 };
 
 #pragma pack(push, 1)

@@ -31,15 +31,6 @@ ssize_t FileManager::writeFile(int fd, const std::vector<char>& buffer, size_t c
     return write(fd, buffer.data(), count);
 }
 
-bool FileManager::createDir(const std::string& dirPath) {
-    
-    return mkdir(dirPath.c_str(), 0777) == 0;
-}
-
-bool FileManager::removeDir(const std::string& dirPath) {
-    return rmdir(dirPath.c_str()) == 0;
-}
-
 bool FileManager::acquireReadLock(int fd) {
     struct flock file_lock = {};
     file_lock.l_type = F_RDLCK;
@@ -170,4 +161,23 @@ std::string FileManager::getFileInfo(const std::string& filepath) {
          << "Last Modified: " << ctime(&fileStat.st_mtime);
 
     return info.str();
+}
+
+bool FileManager::createDir(const std::string& dirpath) {
+    if (mkdir(dirpath.c_str(), 0777) == 0) {
+        return true;
+    } else {
+        perror( "[-] mkdir failed" ); 
+        return false;
+    }
+}
+
+bool FileManager::removeDir(const std::string& dirpath) {
+    return (rmdir(dirpath.c_str()) == 0);
+    if (rmdir(dirpath.c_str()) == 0){
+    	return true;
+    } else{
+    	perror("[-] rmdir failed");
+    	return false;
+    }
 }

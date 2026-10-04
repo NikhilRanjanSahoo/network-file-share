@@ -41,6 +41,10 @@ int main(int argc, char* argv[]) {
     
     } else if ( action == "info" && argc == 3) {
         client.getFileInfo(argv[2]);
+    } else if (action == "mkdir" && argc == 3) {
+        client.createDirectory(argv[2]);
+    } else if (action == "rmdir" && argc == 3) {
+        client.removeDirectory(argv[2]);
     } else {
         std::cerr << "[-] Unknown command.\n";
     }

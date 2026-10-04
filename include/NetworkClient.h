@@ -24,6 +24,8 @@ public:
     bool deleteRemoteFile(const std::string& filename);
     bool renameRemoteFile(const std::string& oldName, const std::string& newName);
     bool getFileInfo(const std::string& filename);
+    bool createDirectory(const std::string& dirname);
+    bool removeDirectory(const std::string& dirname);
 };
 
 #endif 

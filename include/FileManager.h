@@ -16,13 +16,14 @@ public:
     ssize_t writeFile(int fd, const std::vector<char>& buffer, size_t count);
     
     
-    bool createDir(const std::string& dirPath);
-    bool removeDir(const std::string& dirPath);
+    
     bool deleteFile(const std::string& filepath);
     bool renameFile(const std::string& oldPath, const std::string& newPath);
     bool acquireReadLock(int fd);
     bool acquireWriteLock(int fd);
     bool releaseLock(int fd);
+    bool createDir(const std::string& dirpath);
+    bool removeDir(const std::string& dirpath);
     
     std::string getFileInfo(const std::string& filepath);
     std::string listDirectory(const std::string& dirPath);
