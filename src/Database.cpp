@@ -125,3 +125,24 @@ bool Database::saveTransfer(int user_id, const std::string& filename, const std:
     sqlite3_finalize(stmt);
     return success;
 }
+
+bool Database::saveFileRecord(int owner_id, const std::string& filename, const std::string& path, size_t size, const std::string& checksum) {
+    std::string sql = "INSERT INTO files (owner_id, filename, path, size, checksum) VALUES (?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "[-] Failed to prepare file record statement.\n";
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, owner_id);
+    sqlite3_bind_text(stmt, 2, filename.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 4, size);
+    sqlite3_bind_text(stmt, 5, checksum.c_str(), -1, SQLITE_TRANSIENT);
+    
+    bool success = (sqlite3_step(stmt) == SQLITE_DONE);
+    sqlite3_finalize(stmt);
+    
+    return success;
+}

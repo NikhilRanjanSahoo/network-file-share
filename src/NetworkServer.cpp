@@ -186,9 +186,18 @@ void NetworkServer::handleClient(int client_fd) {
 
             case Opcode::UPLOAD: {
                 transferService.receiveFile(client_fd, filename, header.payload_size);
-                std::string hash = fm.calculateSHA256("server_storage/public/" + filename);
+                
+                std::string path = "server_storage/public/" + filename;
+                std::string hash = fm.calculateSHA256(path);
+                
                 std::cout << "[+] Upload complete. SHA-256 Integrity: " << hash << "\n";
+                
+                
+                db.saveFileRecord(1, filename, path, header.payload_size, hash);              
                 db.saveTransfer(1, filename, "UPLOAD", header.payload_size, "SUCCESS");
+                
+                PacketHeader ack_header = {0xABCD, Opcode::ACK, 0, 0};
+                send(client_fd, &ack_header, sizeof(PacketHeader), 0);
                 break;
             }
 
