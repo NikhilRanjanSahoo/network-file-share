@@ -1,6 +1,5 @@
 
 
-```markdown
 # Enterprise File Sharing System (EFSS)
 
 A multithreaded C++17 client-server networked file sharing system featuring server-enforced Role-Based Access Control (RBAC), custom binary protocol framing, advisory file locking, cryptographic file validation (SHA-256), SQLite audit trails, and an interactive Ncurses Terminal User Interface (TUI).
