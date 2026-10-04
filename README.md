@@ -282,14 +282,12 @@ Open a second terminal window:
 ```
 
 1. Enter your provisioned username and password in the **EFSS SECURE LOGIN** modal.
+<img width="492" height="210" alt="image" src="https://github.com/user-attachments/assets/cd302a83-0eac-4c56-8822-a7a09b449182" />
 
 
 2. Navigate the dashboard using the **Up/Down Arrow keys** and **Enter**.
 
+<img width="370" height="298" alt="image" src="https://github.com/user-attachments/assets/f49889a1-98c5-4b8f-aeba-2229c38311a7" />
 
 
 ```
-
----
-
-
