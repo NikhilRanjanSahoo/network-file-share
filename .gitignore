@@ -22,16 +22,12 @@ server_storage/
 downloads/
 
 # Test / scratch transfer files
-custom_file.txt
-my_copy.txt
-new_data.txt
-test.txt
-test_payload.txt
-test_upload.txt
-uploaded_file.txt
+*.txt
+*.doc
 
 # Editor / IDE artifacts
 .vscode/
 .idea/
 *.swp
 *~
+.identifier
