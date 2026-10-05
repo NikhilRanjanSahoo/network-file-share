@@ -1,10 +1,11 @@
 #ifndef NETWORKSERVER_H
 #define NETWORKSERVER_H
-#include <unordered_map>
-#include <mutex>
+
+#include <atomic>
 #include <string>
 #include <netinet/in.h>
 #include "Database.h"
+#include "SessionManager.h"
 
 class NetworkServer {
 private:
@@ -12,19 +13,18 @@ private:
     int port;
     struct sockaddr_in address;
     Database db;
+    SessionManager sessions;
+    std::atomic<int> active_clients{0};
 
-    void handleClient(int client_fd);
-    std::unordered_map<std::string, std::string> active_sessions; 
-    std::mutex session_mutex;                                     
-    std::string generateSessionToken();
+    void handleClient(int client_fd, const std::string& peer_ip);
 
 public:
-    NetworkServer(int port = 8080);
+    explicit NetworkServer(int port = 8080);
     ~NetworkServer();
 
     bool start();
-    void listenForClients();
+    void listenForClients();   // returns after SIGINT/SIGTERM
     void stop();
 };
 
-#endif 
+#endif

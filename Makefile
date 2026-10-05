@@ -1,26 +1,29 @@
-CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++17
-LDFLAGS_SERVER = -pthread -lsqlite3 -lssl -lcrypto
-LDFLAGS_CLIENT = -lncurses
+# Layout: include/*.h  src/*.cpp  -> bin/server, bin/client
+# Needs: libsqlite3-dev libssl-dev libncurses-dev  (Debian/Ubuntu names)
+.RECIPEPREFIX = >
+CXX      ?= g++
+CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -pthread
+CXXFLAGS += -Iinclude
 
-SERVER_BIN = file_server
-SERVER_SRC = src/main_server.cpp src/NetworkServer.cpp src/TransferService.cpp src/FileManager.cpp src/Database.cpp src/AuthenticationService.cpp src/PermissionService.cpp
+COMMON = src/net_io.cpp
+SERVER_SRCS = src/main_server.cpp src/NetworkServer.cpp src/Database.cpp \
+              src/AuthenticationService.cpp src/FileManager.cpp src/TransferService.cpp \
+              src/PermissionService.cpp src/SessionManager.cpp src/Crypto.cpp \
+              src/SetupWizard.cpp $(COMMON)
+CLIENT_SRCS = src/main_client.cpp src/NetworkClient.cpp $(COMMON)
 
-CLIENT_BIN = file_client
-CLIENT_SRC = src/main_client.cpp src/NetworkClient.cpp
+all: bin/server bin/client
 
-all: $(SERVER_BIN) $(CLIENT_BIN)
+bin/server: $(SERVER_SRCS) $(wildcard include/*.h) | bin
+> $(CXX) $(CXXFLAGS) $(SERVER_SRCS) -o $@ -lsqlite3 -lcrypto
 
-$(SERVER_BIN): $(SERVER_SRC)
-	$(CXX) $(CXXFLAGS) $(SERVER_SRC) -o $(SERVER_BIN) $(LDFLAGS_SERVER)
-	@echo "[+] Server built successfully: ./$(SERVER_BIN)"
+bin/client: $(CLIENT_SRCS) $(wildcard include/*.h) | bin
+> $(CXX) $(CXXFLAGS) $(CLIENT_SRCS) -o $@ -lncurses
 
-$(CLIENT_BIN): $(CLIENT_SRC)
-	$(CXX) $(CXXFLAGS) $(CLIENT_SRC) -o $(CLIENT_BIN) $(LDFLAGS_CLIENT)
-	@echo "[+] Client built successfully: ./$(CLIENT_BIN)"
+bin:
+> mkdir -p bin
 
 clean:
-	rm -f $(SERVER_BIN) $(CLIENT_BIN)
-	@echo "[+] Cleaned up executable files."
+> rm -rf bin
 
 .PHONY: all clean
