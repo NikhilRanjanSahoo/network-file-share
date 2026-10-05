@@ -39,7 +39,7 @@ bool NetworkClient::connectToServer() {
 
     if (inet_pton(AF_INET, server_ip.c_str(), &server_addr.sin_addr) <= 0) {
         std::cerr << "[-] Invalid address / Address not supported.\n";
-        disconnect();   // used to leak the socket
+        disconnect();
         return false;
     }
     setSocketTimeouts(sock_fd, CLIENT_TIMEOUT_SEC);
@@ -133,7 +133,7 @@ bool NetworkClient::authenticate(const std::string& username, const std::string&
     current_role = "Guest";
 
     if (username.empty() || username.size() > 31 || password.empty() || password.size() > 31) {
-        std::cerr << "[-] Username and password must be 1-31 characters.\n";   // used to be silently truncated
+        std::cerr << "[-] Username and password must be 1-31 characters.\n";
         return false;
     }
     if (!connectToServer()) return false;
@@ -151,7 +151,6 @@ bool NetworkClient::authenticate(const std::string& username, const std::string&
     disconnect();
     if (!ok) return false;
 
-    // "SUCCESS:<role>:<token>"
     if (response.rfind("SUCCESS:", 0) != 0) return false;
     const std::string rest = response.substr(8);
     const size_t colon = rest.find(':');
@@ -175,12 +174,18 @@ bool NetworkClient::logout() {
     return ok;
 }
 
-bool NetworkClient::upload(const std::string& filepath) {
-    const size_t pos = filepath.find_last_of("/\\");
-    const std::string filename = (pos == std::string::npos) ? filepath : filepath.substr(pos + 1);
-
-    if (!isSafeName(filename)) {
+bool NetworkClient::upload(const std::string& filepath, const std::string& dest) {
+    const std::string base = baseName(filepath);
+    if (!isSafeName(base)) {
         std::cerr << "[-] Invalid file name (empty, too long, or contains reserved characters).\n";
+        return false;
+    }
+
+    std::string remote = dest.empty() ? "home/" : dest;
+    if (remote == "home" || remote == "public") remote += "/";
+    if (remote.back() == '/') remote += base;
+    if (remote.size() > 255) {
+        std::cerr << "[-] Destination path is too long.\n";
         return false;
     }
 
@@ -201,16 +206,16 @@ bool NetworkClient::upload(const std::string& filepath) {
     file.seekg(0, std::ios::beg);
 
     if (!connectToServer()) return false;
-    if (!sendRequest(Opcode::UPLOAD, filename, static_cast<uint32_t>(size))) {
+    if (!sendRequest(Opcode::UPLOAD, remote, static_cast<uint32_t>(size))) {
         disconnect();
         return false;
     }
 
-    std::cout << "[*] Uploading " << filename << " (" << size << " bytes)...\n";
+    std::cout << "[*] Uploading to " << remote << " (" << size << " bytes)...\n";
 
-    // Send the WHOLE file (the old client sent only the first 4096 bytes and still reported success).
     std::vector<char> buffer(64 * 1024);
     std::streamoff sent = 0;
+    bool writeFailed = false;
     while (sent < size) {
         const std::streamsize want = static_cast<std::streamsize>(
             std::min<std::streamoff>(static_cast<std::streamoff>(buffer.size()), size - sent));
@@ -222,9 +227,8 @@ bool NetworkClient::upload(const std::string& filepath) {
             return false;
         }
         if (!writeAll(sock_fd, buffer.data(), static_cast<size_t>(got))) {
-            std::cerr << "[-] Connection lost during upload (the server may have rejected it).\n";
-            disconnect();
-            return false;
+            writeFailed = true;
+            break;
         }
         sent += got;
     }
@@ -232,13 +236,29 @@ bool NetworkClient::upload(const std::string& filepath) {
     uint32_t n = 0;
     const bool ok = readReply(n);
     disconnect();
-    if (ok) std::cout << "[+] Server successfully saved " << filename << "!\n";
+    if (ok) std::cout << "[+] Server successfully saved " << remote << "!\n";
+    else if (writeFailed) std::cerr << "[-] Connection lost during upload.\n";
+    return ok && !writeFailed;
+}
+
+bool NetworkClient::download(const std::string& filename, const std::string& destination) {
+    if (filename.empty() || filename.size() > 240 || destination.find('|') != std::string::npos) {
+        std::cerr << "[-] Invalid path.\n";
+        return false;
+    }
+    if (!connectToServer()) return false;
+    uint32_t n = 0;
+    std::string saved;
+    const bool ok = sendRequest(Opcode::COPY_FILE, destination.empty() ? filename : filename + "|" + destination) &&
+                    readReply(n) && readTextPayload(n, saved);
+    disconnect();
+    if (ok) std::cout << "[+] Saved to your storage: " << saved << "\n";
     return ok;
 }
 
-bool NetworkClient::download(const std::string& filename, const std::string& dst_filepath) {
-    if (!isSafeName(filename)) {
-        std::cerr << "[-] Invalid file name.\n";
+bool NetworkClient::downloadToLocal(const std::string& filename, const std::string& dst_filepath) {
+    if (filename.empty() || filename.size() > 255) {
+        std::cerr << "[-] Invalid remote path.\n";
         return false;
     }
     if (!connectToServer()) return false;
@@ -253,7 +273,7 @@ bool NetworkClient::download(const std::string& filename, const std::string& dst
     std::string final_dest = dst_filepath;
     if (final_dest.empty()) {
         mkdir("downloads", 0755);
-        final_dest = "downloads/copy_" + filename;
+        final_dest = "downloads/copy_" + baseName(filename);
     }
 
     std::ofstream outfile(final_dest, std::ios::binary | std::ios::trunc);
@@ -275,7 +295,7 @@ bool NetworkClient::download(const std::string& filename, const std::string& dst
     disconnect();
 
     if (total_received != incoming_size || outfile.fail()) {
-        std::remove(final_dest.c_str());   // never leave a truncated file that looks complete
+        std::remove(final_dest.c_str());
         std::cerr << "[-] Download incomplete (" << total_received << "/" << incoming_size
                   << " bytes); partial file removed.\n";
         return false;
@@ -285,8 +305,8 @@ bool NetworkClient::download(const std::string& filename, const std::string& dst
     return true;
 }
 
-bool NetworkClient::listFiles() {
-    return textCommand(Opcode::LIST, "", "Server files:\n");
+bool NetworkClient::listFiles(const std::string& path) {
+    return textCommand(Opcode::LIST, path, "Server files:\n");
 }
 
 bool NetworkClient::searchFiles(const std::string& query) {
@@ -316,4 +336,30 @@ bool NetworkClient::createDirectory(const std::string& dirname) {
 
 bool NetworkClient::removeDirectory(const std::string& dirname) {
     return simpleCommand(Opcode::REMOVE_DIR, dirname, "[+] Directory '" + dirname + "' removed successfully.");
+}
+
+bool NetworkClient::listUsers() {
+    return textCommand(Opcode::LIST_USERS, "", "");
+}
+
+bool NetworkClient::addUser(const std::string& user, const std::string& role, const std::string& password) {
+    return simpleCommand(Opcode::ADD_USER, user + "|" + role + "|" + password, "[+] User '" + user + "' created.");
+}
+
+bool NetworkClient::removeUser(const std::string& user) {
+    return simpleCommand(Opcode::REMOVE_USER, user, "[+] User '" + user + "' removed.");
+}
+
+bool NetworkClient::setUserRole(const std::string& user, const std::string& role) {
+    return simpleCommand(Opcode::SET_ROLE, user + "|" + role, "[+] Role of '" + user + "' set to " + role + ".");
+}
+
+bool NetworkClient::listPolicies() {
+    return textCommand(Opcode::LIST_POLICY, "", "");
+}
+
+bool NetworkClient::setPolicy(const std::string& role, const std::string& scope, bool r, bool w, bool d) {
+    return simpleCommand(Opcode::SET_POLICY,
+                         role + "|" + scope + "|" + (r ? "1" : "0") + "|" + (w ? "1" : "0") + "|" + (d ? "1" : "0"),
+                         "[+] Policy updated.");
 }

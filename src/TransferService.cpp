@@ -13,13 +13,7 @@
 TransferService::TransferService() {}
 TransferService::~TransferService() {}
 
-bool TransferService::receiveFile(int socket_fd, const std::string& filename, uint32_t payload_size) {
-    const std::string destPath = std::string(cfg::STORAGE_ROOT) + "/" + filename;
-
-    // Write to a private temp file first. The destination is only touched by one
-    // atomic rename() at the end, so a failed or aborted upload can never leave a
-    // half-written file behind, and concurrent readers keep seeing the old,
-    // complete version (they hold the old inode open).
+bool TransferService::receiveFile(int socket_fd, const std::string& destPath, uint32_t payload_size) {
     std::string tmpPath;
     int file_fd = -1;
     try {
@@ -43,8 +37,8 @@ bool TransferService::receiveFile(int socket_fd, const std::string& filename, ui
 
     while (total_received < payload_size) {
         size_t want = std::min<size_t>(buffer.size(), payload_size - total_received);
-        if (!readExact(socket_fd, buffer.data(), want)) { ok = false; break; }   // peer closed / timed out
-        if (!fileManager.writeFully(file_fd, buffer.data(), want)) { ok = false; break; }   // disk full etc.
+        if (!readExact(socket_fd, buffer.data(), want)) { ok = false; break; }
+        if (!fileManager.writeFully(file_fd, buffer.data(), want)) { ok = false; break; }
         total_received += static_cast<uint32_t>(want);
     }
 
@@ -67,7 +61,6 @@ bool TransferService::receiveFile(int socket_fd, const std::string& filename, ui
 bool TransferService::sendFile(int socket_fd, const std::string& filepath, uint32_t* out_sent) {
     if (out_sent) *out_sent = 0;
 
-    // O_NOFOLLOW: refuse to follow a symlink planted inside the storage root.
     int file_fd = fileManager.openFile(filepath, O_RDONLY | O_NOFOLLOW);
     if (file_fd < 0) {
         sendError(socket_fd, "File not found or not accessible.");
@@ -96,7 +89,7 @@ bool TransferService::sendFile(int socket_fd, const std::string& filepath, uint3
     uint32_t sent = 0;
     while (ok && sent < file_size) {
         ssize_t n = fileManager.readFile(file_fd, buffer, std::min<size_t>(buffer.size(), file_size - sent));
-        if (n <= 0) { ok = false; break; }   // file shrank underneath us or read error
+        if (n <= 0) { ok = false; break; }
         if (!writeAll(socket_fd, buffer.data(), static_cast<size_t>(n))) { ok = false; break; }
         sent += static_cast<uint32_t>(n);
     }

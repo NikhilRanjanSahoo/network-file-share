@@ -1,12 +1,10 @@
-# Layout: include/*.h  src/*.cpp  -> bin/server, bin/client
-# Needs: libsqlite3-dev libssl-dev libncurses-dev  (Debian/Ubuntu names)
 .RECIPEPREFIX = >
 CXX      ?= g++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -pthread
 CXXFLAGS += -Iinclude
 
 COMMON = src/net_io.cpp
-SERVER_SRCS = src/main_server.cpp src/NetworkServer.cpp src/Database.cpp \
+SERVER_SRCS = src/main_server.cpp src/NetworkServer.cpp src/Database.cpp src/DatabaseAdmin.cpp \
               src/AuthenticationService.cpp src/FileManager.cpp src/TransferService.cpp \
               src/PermissionService.cpp src/SessionManager.cpp src/Crypto.cpp \
               src/SetupWizard.cpp $(COMMON)
